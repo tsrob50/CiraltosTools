@@ -8,6 +8,13 @@ It automates the process of creating the necessary gateway subnet, public IP add
 and the VPN Gateway resource itself. The script is intended to simplify the deployment 
 of a basic VPN Gateway for secure cross-premises connectivity.
 
+############################################################
+## Not all subscriptions support the standard IP SKU 
+## If deployment fails with 'One or more operations failed'
+## remove Gateway, Public IP, and GatewaySubnet and
+## run again with -standardIP $false
+############################################################
+
 .PARAMETER rgName
 Specifies the name of existing virtual networks Azure Resource Group.
 This is where the VPN Gateway will be created.
