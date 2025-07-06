@@ -41,8 +41,10 @@ Creates a basic VPN Gateway named "MyVPNGateway" in the "MyResourceGroup" resour
 
 .NOTES
 Author: Travis Roberts
-Date: 2024-06-13
-Version: 1.0
+Date: 2025-06-13
+Version: 1.0 First release.
+Date: 2025-07-06
+Version: 1.1 Add steps to remove the Gateway, Public IP, and GatewaySubnet if the deployment fails.
 
 Copyright (c) 2025 Travis Roberts
 
@@ -136,8 +138,13 @@ catch {
 # The gateway subnet must be named "GatewaySubnet" and have a /27 or larger address space.
 # The address space must not overlap with the VNet address space.
 Write-Host "Creating Gateway Subnet '$subnetName' with address prefix '$addressPrefix' in Virtual Network '$vnetName'"
+# Check if the Gateway Subnet already exists
 try {
-    $vnet = Get-AzVirtualNetwork -ErrorAction Stop -ResourceGroupName $rgName -Name $vnetName 
+    $vnet = Get-AzVirtualNetwork -ErrorAction Stop -ResourceGroupName $rgName -Name $vnetName
+    if ($vnet.Subnets.Name -contains $subnetName) {
+        Write-Host "Gateway Subnet '$subnetName' already exists in Virtual Network '$vnetName'. Script will exit." -ForegroundColor Yellow
+        return
+    }
     Add-AzVirtualNetworkSubnetConfig -ErrorAction Stop -Name $subnetName -AddressPrefix $addressPrefix -VirtualNetwork $vnet -WarningAction SilentlyContinue | Out-Null
     $vnet | Set-AzVirtualNetwork | Out-Null
 }
@@ -164,6 +171,36 @@ try {
 }
 catch {
     Write-Host "Failed to create Public IP address: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Attempting to remove the Public IP address and Gateway Subnet..." -ForegroundColor Yellow
+    try {
+        # Remove the Public IP address if it was created
+        $pipName = $gwName + "IP"
+        if (Get-AzPublicIpAddress -ResourceGroupName $rgName -Name $pipName -ErrorAction SilentlyContinue) {
+            Remove-AzPublicIpAddress -ResourceGroupName $rgName -Name $pipName -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed Public IP address '$pipName'." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Public IP address '$pipName' does not exist. No removal needed." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Failed to remove Public IP address: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    try {
+        # Remove the GatewaySubnet if it was created
+        $vnet = Get-AzVirtualNetwork -ResourceGroupName $rgName -Name $vnetName -ErrorAction SilentlyContinue
+        if ($vnet -and $vnet.Subnets.Name -contains $subnetName) {
+            Remove-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet -ErrorAction SilentlyContinue
+            $vnet | Set-AzVirtualNetwork | Out-Null
+            Write-Host "Removed Gateway Subnet '$subnetName'." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Gateway Subnet '$subnetName' does not exist. No removal needed." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Failed to remove Gateway Subnet: $($_.Exception.Message)" -ForegroundColor Red
+    }
     return
 }
 
@@ -186,5 +223,51 @@ try {
 }
 catch {
     Write-Host "Failed to create VPN Gateway: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host 'Try running the script again with "-standardIP $false" to use a Basic Public IP address.' -ForegroundColor Yellow
+    Write-Host "Also, verify your account has permissions to create a VPN Gateway in the specified Resource Group and is not a guest account." -ForegroundColor Yellow
+    Write-Host "Attempting to remove the VPN Gateway, Public IP address, and Gateway Subnet..." -ForegroundColor Yellow
+    try {
+        # Remove the VPN Gateway if it was created
+        if (Get-AzVirtualNetworkGateway -ResourceGroupName $rgName -Name $gwName -ErrorAction SilentlyContinue) {
+            Remove-AzVirtualNetworkGateway -ResourceGroupName $rgName -Name $gwName -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed VPN Gateway '$gwName'." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "VPN Gateway '$gwName' does not exist. No removal needed." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Failed to remove VPN Gateway: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    try {
+        # Remove the Public IP address if it was created
+        $pipName = $gwName + "IP"
+        if (Get-AzPublicIpAddress -ResourceGroupName $rgName -Name $pipName -ErrorAction SilentlyContinue) {
+            Remove-AzPublicIpAddress -ResourceGroupName $rgName -Name $pipName -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed Public IP address '$pipName'." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Public IP address '$pipName' does not exist. No removal needed." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Failed to remove Public IP address: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    try {
+        # Remove the GatewaySubnet if it was created
+        $vnet = Get-AzVirtualNetwork -ResourceGroupName $rgName -Name $vnetName -ErrorAction SilentlyContinue
+        $subnetName = "GatewaySubnet"
+        if ($vnet -and $vnet.Subnets.Name -contains $subnetName) {
+            Remove-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet -ErrorAction SilentlyContinue
+            $vnet | Set-AzVirtualNetwork | Out-Null
+            Write-Host "Removed Gateway Subnet '$subnetName'." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Gateway Subnet '$subnetName' does not exist. No removal needed." -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Failed to remove Gateway Subnet: $($_.Exception.Message)" -ForegroundColor Red
+    }
     return
 }
