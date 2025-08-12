@@ -9,14 +9,6 @@
     and installs Google Chrome using Chocolatey. The script logs all actions to a specified log file
     and handles errors with a try-catch block.
 
-    Variables:
-    - $logDir: Directory for log files.
-    - $downloadDir: Directory for downloading files.
-    - $timeZone: Desired timezone for the VM.  Use "tzutil /l" to view available time zones by name.
-    - $owner: Registered owner name for the VM.
-    - $organization: Registered organization name for the VM.
-    - $bgInfoConfigUrl: URL to the BGInfo configuration file. This file should be publicly accessible, or use a SAS URL on a blob storage account to access the file.
-
 .PARAMETER LogDir
 This parameter is used to set the directory for log files. It is expected to be a string. The default value is "c:\CSELog" and it is optional.
 
@@ -86,22 +78,16 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$bgInfoConfigUrl = "https://github.com/tsrob50/CiraltosTools/raw/refs/heads/main/VM/bginfo.bgi"
 )
-<#
-#region Variables
-# path to the software.zip archive file with the application binaries.  Must be publicly accessible, suggest using a SAS URL on a blob storage account.
-$logDir = "c:\CSELog" # Directory for log files
-$downloadDir = "c:\CSEDownloads" # Directory for downloaded files
-$timeZone = "<Time Zone>" # Use "tzutil /l" to view available time zones by name
-$owner = "<Owner Name>" # Replace with the desired owner name
-$organization = "<Organization Name>" # Replace with the desired organization name
-$bgInfoConfigUrl = "https://github.com/tsrob50/CiraltosTools/raw/refs/heads/main/VM/bginfo.bgi" # URL to the BGInfo configuration file
-#endregion
-#>
 
 #region LogFile
 # Check if the log directory exists, if not create it
-if (-not (Test-Path $logDir)) {
+Try{
+    if (-not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir
+}
+}
+catch {
+    Write-Error "Failed to create log directory: $_.Exception.Message"
 }
 # Create the log file with the current date
 $logFile = Join-Path $logDir "$(get-date -format 'yyyyMMdd')_softwareinstall.log"
@@ -139,6 +125,7 @@ catch {
 
 
 #region set the registered owner and organization
+# Run "winver" to verify the changes
 try {
     # Ensure the registry key "RegisteredOwner" exists
     if (-not (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\RegisteredOwner")) {
